@@ -1,24 +1,40 @@
-from opentelemetry.metrics import set_meter_provider, get_meter_provider
+from opentelemetry.metrics import set_meter_provider, get_meter_provider, Counter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.metrics._internal.observation import Observation
+from opentelemetry.sdk.metrics._internal.aggregation import DropAggregation, LastValueAggregation
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from prometheus_client import start_http_server
 import resource
+from opentelemetry.sdk.metrics.view import View
 
 
 def configure_meter_provider():
     start_http_server(port=8000, addr="localhost")
-    reader = PrometheusMetricReader(prefix="MetricExample")
     exporter = ConsoleMetricExporter()
     reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
-    provider = MeterProvider(metric_readers=[reader], resource=Resource.create())
+    views = [
+        View(
+            instrument_name="",
+            aggregation=DropAggregation()
+        ),
+        View(
+            instrument_type=Counter,
+            attribute_keys={"locale"},
+            name="sold",
+            description="total item sold",
+            aggregation=LastValueAggregation()
+        ),
+    ]
+    provider = MeterProvider(
+        metric_readers=[reader],
+        resource=Resource.create(),
+        views=views,
+    )
     set_meter_provider(provider)
 
 
 def async_gauge_callback(callback_option):
-
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return [Observation(rss, {"app": "timescale"})]
 
